@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>24点小游戏</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', sans-serif;
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #fff;
+  overflow-x: hidden;
+  padding: 10px;
+}
+h1 {
+  margin: 20px 0 10px;
+  font-size: 36px;
+  text-shadow: 0 0 20px rgba(255,200,50,0.8);
+  letter-spacing: 6px;
+}
+#difficulty-area {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 6px;
+  justify-content: center;
+}
+.diff-btn {
+  padding: 6px 18px;
+  border: 2px solid rgba(255,255,255,0.25);
+  border-radius: 20px;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.25s;
+  letter-spacing: 1px;
+}
+.diff-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.diff-btn.active {
+  background: linear-gradient(145deg, #ff6b6b, #ee5a24);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(255,100,100,0.4);
+}
+.diff-btn[data-diff="medium"].active {
+  background: linear-gradient(145deg, #ff9f43, #ff7f00);
+  box-shadow: 0 3px 12px rgba(255,160,50,0.4);
+}
+.diff-btn[data-diff="hard"].active {
+  background: linear-gradient(145deg, #a29bfe, #6c5ce7);
+  box-shadow: 0 3px 12px rgba(160,130,255,0.4);
+}
+#score-area {
+  position: fixed;
+  top: 15px; right: 20px;
+  font-size: 18px;
+  background: rgba(255,255,255,0.1);
+  padding: 8px 20px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+#numbers-area {
+  display: flex;
+  gap: 16px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.num-card {
+  width: 70px;
+  height: 90px;
+  background: linear-gradient(145deg, #ff6b6b, #ee5a24);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  font-weight: bold;
+  cursor: grab;
+  user-select: none;
+  box-shadow: 0 6px 20px rgba(255,100,100,0.4);
+  transition: transform 0.2s, opacity 0.2s;
+}
+.num-card:hover { transform: translateY(-4px) scale(1.05); }
+.num-card:active { cursor: grabbing; }
+.num-card.used {
+  opacity: 0.15;
+  pointer-events: none;
+  transform: scale(0.85);
+}
+#hint {
+  color: rgba(255,255,255,0.45);
+  font-size: 13px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+#ops-area {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.op-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: none;
+  font-size: 26px;
+  font-weight: bold;
+  cursor: grab;
+  color: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.op-btn:hover { transform: scale(1.15); }
+.op-btn:active { cursor: grabbing; }
+.op-add { background: linear-gradient(145deg, #3742fa, #5352ed); }
+.op-sub { background: linear-gradient(145deg, #ff9f43, #ff7f00); }
+.op-mul { background: linear-gradient(145deg, #2ed573, #1dd1a1); }
+.op-div { background: linear-gradient(145deg, #ff6b81, #ee5a6e); }
+.op-lparen, .op-rparen { background: linear-gradient(145deg, #a29bfe, #6c5ce7); font-size: 32px; }
+#expression-area {
+  width: 92%;
+  max-width: 680px;
+  min-height: 110px;
+  background: rgba(255,255,255,0.06);
+  border: 2px dashed rgba(255,255,255,0.25);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+#expression-area.drag-over {
+  background: rgba(100,200,255,0.15) !important;
+  border-color: rgba(100,200,255,0.6) !important;
+}
+#expression-area::before {
+  content: '👆 将上方数字或运算符拖到这里';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  color: rgba(255,255,255,0.2);
+  font-size: 15px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#expression-area.has-content::before { display: none; }
+.expr-item {
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 26px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.15s;
+  position: relative;
+  animation: pop 0.25s ease-out;
+}
+.expr-item:hover { transform: scale(1.08); }
+.expr-item.number {
+  background: linear-gradient(145deg, #ff6b6b, #ee5a24);
+  box-shadow: 0 3px 10px rgba(255,100,100,0.3);
+}
+.expr-item.op {
+  background: linear-gradient(145deg, #3742fa, #5352ed);
+  box-shadow: 0 3px 10px rgba(80,80,255,0.3);
+}
+.expr-item.lparen, .expr-item.rparen {
+  background: linear-gradient(145deg, #2ed573, #1dd1a1);
+}
+.expr-item::after {
+  content: '✕';
+  position: absolute;
+  top: -7px; right: -7px;
+  width: 18px; height: 18px;
+  background: #ff4757;
+  border-radius: 50%;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: #fff;
+}
+.expr-item:hover::after { opacity: 1; }
+#btn-area {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.action-btn {
+  padding: 10px 26px;
+  border: none;
+  border-radius: 28px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.25s;
+  letter-spacing: 1px;
+  color: #fff;
+}
+.action-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+#btn-submit { background: linear-gradient(145deg, #2ed573, #1dd1a1); }
+#btn-clear { background: linear-gradient(145deg, #ff6b81, #ee5a6e); }
+#btn-solutions { background: linear-gradient(145deg, #ff9f43, #ff7f00); }
+#btn-new { background: linear-gradient(145deg, #3742fa, #5352ed); }
+#result-area {
+  width: 92%;
+  max-width: 680px;
+  min-height: 50px;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 30px;
+  font-size: 17px;
+  line-height: 1.8;
+  display: none;
+}
+#result-area.correct {
+  background: rgba(46,213,115,0.12);
+  border: 2px solid rgba(46,213,115,0.4);
+}
+#result-area.wrong {
+  background: rgba(255,71,87,0.12);
+  border: 2px solid rgba(255,71,87,0.4);
+}
+.solution-item {
+  background: rgba(255,255,255,0.08);
+  padding: 6px 14px;
+  border-radius: 8px;
+  margin: 5px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+}
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.shake { animation: shake 0.35s ease-in-out; }
+@media (max-width: 600px) {
+  h1 { font-size: 26px; }
+  .num-card { width: 56px; height: 74px; font-size: 34px; }
+  #numbers-area { gap: 10px; }
+  .op-btn { width: 46px; height: 46px; font-size: 22px; }
+  .expr-item { font-size: 22px; padding: 5px 10px; }
+}
+</style>
+</head>
+<body>
+
+<h1>24点挑战</h1>
+<div id="difficulty-area">
+  <button class="diff-btn active" data-diff="easy">初级</button>
+  <button class="diff-btn" data-diff="medium">中级</button>
+  <button class="diff-btn" data-diff="hard">高级</button>
+</div>
+<div id="score-area">✅ <span id="score-correct">0</span> | ❌ <span id="score-wrong">0</span></div>
+
+<div id="numbers-area"></div>
+<div id="hint">👆 拖拽数字或点击运算符来构建表达式，拖到下方区域</div>
+
+<div id="ops-area">
+  <button class="op-btn op-add" data-op="+">+</button>
+  <button class="op-btn op-sub" data-op="-">−</button>
+  <button class="op-btn op-mul" data-op="*">×</button>
+  <button class="op-btn op-div" data-op="/">÷</button>
+  <button class="op-btn op-lparen" data-op="(">(</button>
+  <button class="op-btn op-rparen" data-op=")">)</button>
+</div>
+
+<div id="expression-area"></div>
+
+<div id="btn-area">
+  <button class="action-btn" id="btn-submit">✅ 提交答案</button>
+  <button class="action-btn" id="btn-clear">🗑️ 清空</button>
+  <button class="action-btn" id="btn-solutions">💡 提示</button>
+  <button class="action-btn" id="btn-new">🔄 新题目</button>
+</div>
+
+<div id="result-area"></div>
+
+<!-- 自定义输入模式 -->
+<div id="custom-mode" style="width:92%;max-width:680px;margin-bottom:20px;padding:16px;background:rgba(255,255,255,0.06);border:2px dashed rgba(255,255,255,0.25);border-radius:16px;">
+  <div style="text-align:center;font-size:15px;color:rgba(255,255,255,0.7);margin-bottom:12px;">📝 自定义输入模式：输入4个数字，点击"求解"查看解答</div>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center;">
+    <input class="custom-input" type="number" min="1" max="99" placeholder="数字1" style="width:70px;height:50px;text-align:center;font-size:28px;font-weight:bold;border-radius:12px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;outline:none;">
+    <span style="font-size:28px;color:rgba(255,255,255,0.5);">,</span>
+    <input class="custom-input" type="number" min="1" max="99" placeholder="数字2" style="width:70px;height:50px;text-align:center;font-size:28px;font-weight:bold;border-radius:12px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;outline:none;">
+    <span style="font-size:28px;color:rgba(255,255,255,0.5);">,</span>
+    <input class="custom-input" type="number" min="1" max="99" placeholder="数字3" style="width:70px;height:50px;text-align:center;font-size:28px;font-weight:bold;border-radius:12px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;outline:none;">
+    <span style="font-size:28px;color:rgba(255,255,255,0.5);">,</span>
+    <input class="custom-input" type="number" min="1" max="99" placeholder="数字4" style="width:70px;height:50px;text-align:center;font-size:28px;font-weight:bold;border-radius:12px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;outline:none;">
+    <button id="btn-custom-solve" style="padding:10px 24px;border:none;border-radius:28px;font-size:16px;font-weight:bold;cursor:pointer;background:linear-gradient(145deg,#ff9f43,#ff7f00);color:#fff;transition:all 0.25s;margin-left:8px;">🔍 求解</button>
+    <button id="btn-custom-clear" style="padding:10px 18px;border:none;border-radius:28px;font-size:14px;font-weight:bold;cursor:pointer;background:rgba(255,255,255,0.15);color:#fff;transition:all 0.25s;">清空</button>
+  </div>
+  <div id="custom-result" style="margin-top:12px;font-size:16px;line-height:1.8;display:none;"></div>
+</div>
+
+<script>
+// ========== 难度 ==========
+var currentDiff = 'easy';  // 'easy' | 'medium' | 'hard'
+
+// ========== 24点核心算法（节点式：val+expr同步）==========
+function solve24(nums, allowFraction) {
+  var solutions = {};
+  var ep = 1e-9;
+
+  if (allowFraction === undefined) allowFraction = (currentDiff === 'hard');
+
+  // 节点：同时携带数值和表达式字符串
+  function N(val, expr) { return {val:val, expr:expr}; }
+
+  // 两个节点做运算，同时算出数值和表达式
+  function opNode(l, r, op) {
+    if (op === '+') return N(l.val + r.val, '(' + l.expr + '+' + r.expr + ')');
+    if (op === '-') return N(l.val - r.val, '(' + l.expr + '-' + r.expr + ')');
+    if (op === '*') {
+      var lp = (l.expr.indexOf('+') !== -1 || l.expr.indexOf('-') !== -1) ? '(' + l.expr + ')' : l.expr;
+      var rp = (r.expr.indexOf('+') !== -1 || r.expr.indexOf('-') !== -1) ? '(' + r.expr + ')' : r.expr;
+      return N(l.val * r.val, '(' + lp + '*' + rp + ')');
+    }
+    if (op === '/') {
+      if (Math.abs(r.val) < ep) return null;
+      if (!allowFraction && !isInteger(r.val)) return null;
+      var result = l.val / r.val;
+      if (!allowFraction && !isInteger(result)) return null;
+      var lp = (l.expr.indexOf('+') !== -1 || l.expr.indexOf('-') !== -1) ? '(' + l.expr + ')' : l.expr;
+      return N(result, '(' + lp + '/' + r.expr + ')');
+    }
+    return null;
+  }
+
+  function isInteger(n) { return Math.abs(n - Math.round(n)) < ep; }
+
+  var ops = ['+','-','*','/'];
+  var perms = [];
+  (function permute(cur, remain) {
+    if (remain.length === 0) { perms.push(cur.slice()); return; }
+    for (var i = 0; i < remain.length; i++) {
+      if (i > 0 && remain[i] === remain[i-1]) continue;
+      cur.push(remain[i]);
+      permute(cur, remain.slice(0, i).concat(remain.slice(i + 1)));
+      cur.pop();
+    }
+  })([], nums.slice().sort(function(a,b){return a-b;}));
+
+  for (var p = 0; p < perms.length; p++) {
+    var a = N(perms[p][0], String(perms[p][0]));
+    var b = N(perms[p][1], String(perms[p][1]));
+    var c = N(perms[p][2], String(perms[p][2]));
+    var d = N(perms[p][3], String(perms[p][3]));
+    for (var o1 = 0; o1 < 4; o1++) {
+      var op1 = ops[o1];
+      for (var o2 = 0; o2 < 4; o2++) {
+        var op2 = ops[o2];
+        for (var o3 = 0; o3 < 4; o3++) {
+          var op3 = ops[o3];
+          // ((a op1 b) op2 c) op3 d
+          var r = opNode(a, b, op1);
+          if (r) {
+            var r2 = opNode(r, c, op2);
+            if (r2) {
+              var r3 = opNode(r2, d, op3);
+              if (r3 && Math.abs(r3.val - 24) < ep) solutions[r3.expr] = true;
+            }
+          }
+          // (a op1 (b op2 c)) op3 d
+          r = opNode(b, c, op2);
+          if (r) {
+            r2 = opNode(a, r, op1);
+            if (r2) {
+              r3 = opNode(r2, d, op3);
+              if (r3 && Math.abs(r3.val - 24) < ep) solutions[r3.expr] = true;
+            }
+          }
+          // a op1 ((b op2 c) op3 d)
+          r = opNode(b, c, op2);
+          if (r) {
+            r2 = opNode(r, d, op3);
+            if (r2) {
+              r3 = opNode(a, r2, op1);
+              if (r3 && Math.abs(r3.val - 24) < ep) solutions[r3.expr] = true;
+            }
+          }
+          // a op1 (b op2 (c op3 d))
+          r = opNode(c, d, op3);
+          if (r) {
+            r2 = opNode(b, r, op2);
+            if (r2) {
+              r3 = opNode(a, r2, op1);
+              if (r3 && Math.abs(r3.val - 24) < ep) solutions[r3.expr] = true;
+            }
+          }
+          // (a op1 b) op2 (c op3 d)
+          r = opNode(a, b, op1);
+          var r4 = opNode(c, d, op3);
+          if (r && r4) {
+            r3 = opNode(r, r4, op2);
+            if (r3 && Math.abs(r3.val - 24) < ep) solutions[r3.expr] = true;
+          }
+        }
+      }
+    }
+  }
+  return Object.keys(solutions);
+}
+
+function canMake24(nums, allowFraction) {
+  if (allowFraction === undefined) allowFraction = (currentDiff === 'hard');
+  var ep = 1e-9;
+  var ops = ['+','-','*','/'];
+
+  function calc(a, b, op) {
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    if (op === '/') {
+      if (Math.abs(b) < ep) return NaN;
+      if (!allowFraction && !isInteger(b)) return NaN;
+      var r = a / b;
+      if (!allowFraction && !isInteger(r)) return NaN;
+      return r;
+    }
+    return NaN;
+  }
+  function isInteger(n) { return Math.abs(n - Math.round(n)) < ep; }
+
+  var perms = [];
+  (function p(cur, rem) {
+    if (rem.length === 0) { perms.push(cur.slice()); return; }
+    for (var i = 0; i < rem.length; i++) {
+      if (i > 0 && rem[i] === rem[i-1]) continue;
+      cur.push(rem[i]);
+      p(cur, rem.slice(0,i).concat(rem.slice(i+1)));
+      cur.pop();
+    }
+  })([], nums.slice().sort(function(a,b){return a-b;}));
+
+  for (var p = 0; p < perms.length; p++) {
+    var a = perms[p][0], b = perms[p][1], c = perms[p][2], d = perms[p][3];
+    for (var o1 = 0; o1 < 4; o1++) {
+      var r1 = calc(a, b, ops[o1]);
+      if (isNaN(r1)) continue;
+      for (var o2 = 0; o2 < 4; o2++) {
+        var r2 = calc(r1, c, ops[o2]);
+        if (isNaN(r2)) continue;
+        for (var o3 = 0; o3 < 4; o3++) {
+          var r3 = calc(r2, d, ops[o3]);
+          if (!isNaN(r3) && Math.abs(r3-24) < ep) return true;
+        }
+      }
+      for (var o2b = 0; o2b < 4; o2b++) {
+        var r2b = calc(b, c, ops[o2b]);
+        if (isNaN(r2b)) continue;
+        var r3b = calc(a, r2b, ops[o1]);
+        if (isNaN(r3b)) continue;
+        for (var o3b = 0; o3b < 4; o3b++) {
+          var r4b = calc(r3b, d, ops[o3b]);
+          if (!isNaN(r4b) && Math.abs(r4b-24) < ep) return true;
+        }
+      }
+    }
+    for (var o3c = 0; o3c < 4; o3c++) {
+      var r1c = calc(c, d, ops[o3c]);
+      if (isNaN(r1c)) continue;
+      for (var o2c = 0; o2c < 4; o2c++) {
+        var r2c = calc(b, r1c, ops[o2c]);
+        if (isNaN(r2c)) continue;
+        for (var o1c = 0; o1c < 4; o1c++) {
+          var r3c = calc(a, r2c, ops[o1c]);
+          if (!isNaN(r3c) && Math.abs(r3c-24) < ep) return true;
+        }
+      }
+    }
+    for (var o1d = 0; o1d < 4; o1d++) {
+      for (var o3d = 0; o3d < 4; o3d++) {
+        var r1d = calc(a, b, ops[o1d]);
+        var r2d = calc(c, d, ops[o3d]);
+        if (isNaN(r1d) || isNaN(r2d)) continue;
+        for (var o2d = 0; o2d < 4; o2d++) {
+          var r3d = calc(r1d, r2d, ops[o2d]);
+          if (!isNaN(r3d) && Math.abs(r3d-24) < ep) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// ========== 难度分类 ==========
+// 初级：纯加减法就能算出24（不靠乘除）
+// 中级：整除可解，但纯加减法无解，且没有直接因子对（需要先构造）
+// 高级：整除四则解不出来，必须用到分数构造（如 A×(B−D/C)）
+function canMake24ByAddSub(nums) {
+  // 4个数字，枚举所有加减组合（第一个数字前为+，后3个可以是+或-）
+  for (var mask = 0; mask < 8; mask++) {
+    var r = nums[0];
+    for (var i = 1; i < 4; i++) {
+      if (mask & (1 << (i-1))) r -= nums[i]; else r += nums[i];
+    }
+    if (Math.abs(r - 24) < 1e-9) return true;
+  }
+  return false;
+}
+
+function classifyDifficulty(nums) {
+  // 初级：纯加减法可解
+  if (canMake24ByAddSub(nums)) return 'easy';
+  // 检查是否有整数解（允许乘除）
+  if (!canMake24(nums, false)) {
+    // 整数四则解不出来 → 高级（但必须真的有解，即分数可解）
+    return canMake24(nums, true) ? 'hard' : null;
+  }
+  // 有整数解但纯加减法无解 → 中级
+  return 'medium';
+}
+
+function randN(max) { return Math.ceil(Math.random() * max); }
+
+// ========== 生成题目 ==========
+function generateNumbers() {
+  if (currentDiff === 'easy') {
+    // 初级：纯加减法可解
+    var attempts = 0;
+    while (attempts < 500) {
+      var nums = [randN(13), randN(13), randN(13), randN(13)];
+      if (classifyDifficulty(nums) === 'easy') return nums;
+      attempts++;
+    }
+    return [8, 8, 8, 0]; // fallback（实际上0不在范围内，用 12+12+0+0 的思路）
+  }
+  if (currentDiff === 'medium') {
+    // 中级：整除可解，但纯加减法无解
+    var attempts = 0;
+    while (attempts < 500) {
+      var nums = [randN(13), randN(13), randN(13), randN(13)];
+      if (classifyDifficulty(nums) === 'medium') return nums;
+      attempts++;
+    }
+    return [1, 2, 3, 4];
+  }
+  // 高级：整除四则无解，必须分数构造
+  var attempts = 0;
+  while (attempts < 500) {
+    var nums = [randN(13), randN(13), randN(13), randN(13)];
+    if (classifyDifficulty(nums) === 'hard') return nums;
+    attempts++;
+  }
+  return [1, 3, 4, 6];
+}
+
+// ========== 游戏界面 ==========
+var currentNums = [];
+var usedNums = [];
+var expression = [];
+var scoreCorrect = 0;
+var scoreWrong = 0;
+var hintShowCount = 0;
+
+var numbersArea = document.getElementById('numbers-area');
+var exprArea = document.getElementById('expression-area');
+var resultArea = document.getElementById('result-area');
+
+function initGame() {
+  currentNums = generateNumbers();
+  usedNums = [];
+  expression = [];
+  hintShowCount = 0;
+  resultArea.className = '';
+  resultArea.style.display = 'none';
+  renderNumbers();
+  renderExpression();
+}
+
+// ---- 渲染数字卡片 ----
+function renderNumbers() {
+  numbersArea.innerHTML = '';
+  for (var i = 0; i < currentNums.length; i++) {
+    (function(idx, val) {
+      var card = document.createElement('div');
+      card.className = 'num-card';
+      card.textContent = String(val);
+      if (usedNums.indexOf(idx) !== -1) {
+        card.classList.add('used');
+      } else {
+        card.setAttribute('draggable', 'true');
+        card.addEventListener('dragstart', function(e) {
+          e.dataTransfer.setData('text/plain', JSON.stringify({type:'num', index:idx, value:val}));
+        });
+      }
+      numbersArea.appendChild(card);
+    })(i, currentNums[i]);
+  }
+}
+
+// ---- 运算符按钮 ----
+var opBtns = document.querySelectorAll('.op-btn');
+for (var i = 0; i < opBtns.length; i++) {
+  (function(btn) {
+    var opVal = btn.getAttribute('data-op');
+    btn.setAttribute('draggable', 'true');
+    btn.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', JSON.stringify({type:'op', value:opVal}));
+    });
+    btn.addEventListener('click', function() { addOp(opVal); });
+  })(opBtns[i]);
+}
+
+// ---- 表达式区 ----
+exprArea.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  exprArea.classList.add('drag-over');
+});
+exprArea.addEventListener('dragleave', function() {
+  exprArea.classList.remove('drag-over');
+});
+exprArea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  exprArea.classList.remove('drag-over');
+  try {
+    var data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if (data.type === 'num') {
+      if (usedNums.indexOf(data.index) !== -1) return;
+      usedNums.push(data.index);
+      expression.push({type:'num', value:data.value, index:data.index});
+      renderNumbers();
+      renderExpression();
+    } else if (data.type === 'op') {
+      addOp(data.value);
+    }
+  } catch(ex) {}
+});
+
+function renderExpression() {
+  exprArea.innerHTML = '';
+  if (expression.length === 0) {
+    exprArea.classList.remove('has-content');
+  } else {
+    exprArea.classList.add('has-content');
+    for (var i = 0; i < expression.length; i++) {
+      (function(index) {
+        var item = expression[index];
+        var el = document.createElement('div');
+        el.className = 'expr-item ' + item.type;
+        if (item.type === 'num') {
+          el.textContent = String(item.value);
+        } else if (item.type === 'op') {
+          var d = {'+':'+', '-':'−', '*':'×', '/':'÷'}[item.value] || item.value;
+          el.textContent = d;
+        } else if (item.type === 'lparen') {
+          el.textContent = '(';
+        } else if (item.type === 'rparen') {
+          el.textContent = ')';
+        }
+        el.addEventListener('click', function() { removeFromExpression(index); });
+        exprArea.appendChild(el);
+      })(i);
+    }
+  }
+}
+
+function addOp(op) {
+  if (op === '(') {
+    expression.push({type:'lparen'});
+  } else if (op === ')') {
+    expression.push({type:'rparen'});
+  } else {
+    expression.push({type:'op', value:op});
+  }
+  renderExpression();
+}
+
+function removeFromExpression(idx) {
+  var item = expression[idx];
+  if (item && item.type === 'num' && item.index !== undefined) {
+    usedNums = usedNums.filter(function(x){ return x !== item.index; });
+  }
+  expression.splice(idx, 1);
+  renderNumbers();
+  renderExpression();
+}
+
+// ---- 提交答案 ----
+document.getElementById('btn-submit').addEventListener('click', function() {
+  if (expression.length === 0) {
+    showResult('请先构建表达式！', false);
+    return;
+  }
+  var jsExpr = '';
+  for (var i = 0; i < expression.length; i++) {
+    var item = expression[i];
+    if (item.type === 'num') jsExpr += item.value;
+    else if (item.type === 'op') jsExpr += item.value;
+    else if (item.type === 'lparen') jsExpr += '(';
+    else if (item.type === 'rparen') jsExpr += ')';
+  }
+  var usedVals = [];
+  for (var j = 0; j < expression.length; j++) {
+    if (expression[j].type === 'num') usedVals.push(expression[j].value);
+  }
+  var sortedUsed = usedVals.slice().sort(function(a,b){return a-b;});
+  var sortedCur = currentNums.slice().sort(function(a,b){return a-b;});
+  var allUsed = sortedUsed.length === sortedCur.length;
+  if (allUsed) {
+    for (var k = 0; k < sortedUsed.length; k++) {
+      if (sortedUsed[k] !== sortedCur[k]) { allUsed = false; break; }
+    }
+  }
+  if (!allUsed) {
+    showResult('❌ 需要用完所有4个数字才能提交！', false);
+    return;
+  }
+  var result;
+  try {
+    result = Function('"use strict"; return (' + jsExpr + ')')();
+  } catch(e) {
+    showResult('❌ 表达式格式错误，请检查括号和运算符！', false);
+    return;
+  }
+  if (Math.abs(result - 24) < 1e-9) {
+    scoreCorrect++;
+    document.getElementById('score-correct').textContent = scoreCorrect;
+    showResult('✅ 正确！答案等于24！', true);
+    showAllSolutions();
+  } else {
+    scoreWrong++;
+    document.getElementById('score-wrong').textContent = scoreWrong;
+    showResult('❌ 不对哦，结果是 ' + Number(result.toFixed(4)) + '，不是24。再想想！', false);
+    exprArea.classList.add('shake');
+    setTimeout(function(){ exprArea.classList.remove('shake'); }, 400);
+  }
+});
+
+function showResult(msg, isCorrect) {
+  resultArea.innerHTML = msg;
+  resultArea.className = isCorrect ? 'correct' : 'wrong';
+  resultArea.style.display = 'block';
+}
+
+function showAllSolutions() {
+  var sol = solve24(currentNums);
+  if (sol.length <= 1) {
+    resultArea.innerHTML += '<br><br>💡 这个数字组合只有这一种解法，你已经找到了！';
+  } else {
+    var html = '<br><br>💡 共有 <b>' + sol.length + '</b> 种解法：<br>';
+    for (var i = 0; i < Math.min(sol.length, 20); i++) {
+      html += '<div class="solution-item">' + sol[i].replace(/\*/g,'×').replace(/\//g,'÷') + ' = 24</div>';
+    }
+    if (sol.length > 20) {
+      html += '<div style="color:rgba(255,255,255,0.5)">...还有 ' + (sol.length-20) + ' 种解法</div>';
+    }
+    resultArea.innerHTML = html;
+  }
+}
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  expression = [];
+  usedNums = [];
+  resultArea.className = '';
+  resultArea.style.display = 'none';
+  renderNumbers();
+  renderExpression();
+});
+
+document.getElementById('btn-new').addEventListener('click', function() {
+  initGame();
+});
+
+// ---- 提示按钮（逐步展示）----
+document.getElementById('btn-solutions').addEventListener('click', function() {
+  var sol = solve24(currentNums);
+  if (sol.length === 0) {
+    showResult('❌ 这组数字无解', false);
+    hintShowCount = 0;
+    return;
+  }
+  hintShowCount++;
+  if (hintShowCount > sol.length) {
+    showResult('✅ 已全部展示 ' + sol.length + ' 种解法！', true);
+    hintShowCount = 0;
+    return;
+  }
+  var html = '💡 提示：已展示 <b>' + hintShowCount + '</b>/' + sol.length + ' 种解法：<br>';
+  for (var i = 0; i < hintShowCount; i++) {
+    html += '<div class="solution-item">' + sol[i].replace(/\*/g,'×').replace(/\//g,'÷') + ' = 24</div>';
+  }
+  if (hintShowCount < sol.length) {
+    html += '<div style="color:rgba(255,255,255,0.45);font-size:13px;margin-top:6px;">💡 继续点击"提示"查看剩余解法</div>';
+  } else {
+    html += '<div style="color:rgba(255,255,255,0.45);font-size:13px;margin-top:6px;">✅ 已全部展示，下次点击将重新开始</div>';
+  }
+  resultArea.innerHTML = html;
+  resultArea.className = 'correct';
+  resultArea.style.display = 'block';
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('btn-submit').click();
+  if (e.key === 'Escape') document.getElementById('btn-clear').click();
+  if (e.key === ' ') { e.preventDefault(); document.getElementById('btn-new').click(); }
+});
+
+// ========== 自定义输入模式 ==========
+(function(){
+  var inputs = document.querySelectorAll('.custom-input');
+  var btnSolve = document.getElementById('btn-custom-solve');
+  var btnClear = document.getElementById('btn-custom-clear');
+  var customResult = document.getElementById('custom-result');
+  var customShowCount = 0;
+  var lastCustomKey = '';
+
+  for (var i = 0; i < inputs.length; i++) {
+    (function(idx) {
+      inputs[idx].addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (idx < inputs.length - 1) {
+            inputs[idx + 1].focus();
+          } else {
+            btnSolve.click();
+          }
+        }
+      });
+      inputs[idx].addEventListener('focus', function() {
+        this.style.borderColor = 'rgba(255,200,50,0.8)';
+        this.style.boxShadow = '0 0 12px rgba(255,200,50,0.3)';
+      });
+      inputs[idx].addEventListener('blur', function() {
+        this.style.borderColor = 'rgba(255,255,255,0.3)';
+        this.style.boxShadow = 'none';
+      });
+    })(i);
+  }
+
+  btnSolve.addEventListener('click', function() {
+    var nums = [];
+    for (var i = 0; i < inputs.length; i++) {
+      var v = parseFloat(inputs[i].value);
+      if (isNaN(v) || v < 1 || v > 99 || Math.floor(v) !== v) {
+        customResult.style.display = 'block';
+        customResult.innerHTML = '❌ 请输入4个有效数字（1-99的整数）';
+        customResult.style.color = '#ff6b81';
+        customShowCount = 0;
+        lastCustomKey = '';
+        return;
+      }
+      nums.push(v);
+    }
+    var key = nums.join(',');
+    if (key !== lastCustomKey) {
+      customShowCount = 0;
+      lastCustomKey = key;
+    }
+    var sol = solve24(nums);
+    if (sol.length === 0) {
+      customResult.style.display = 'block';
+      customResult.innerHTML = '❌ 这4个数字无法算出24';
+      customResult.style.color = '#ff6b81';
+      customShowCount = 0;
+      return;
+    }
+    customShowCount++;
+    if (customShowCount > sol.length) {
+      customResult.style.display = 'block';
+      customResult.innerHTML = '✅ 已全部展示 ' + sol.length + ' 种解法！';
+      customResult.style.color = '#2ed573';
+      customShowCount = 0;
+      return;
+    }
+    customResult.style.display = 'block';
+    var html = '<span style="color:#2ed573;font-size:18px;font-weight:bold;">✅ 已展示 ' + customShowCount + '/' + sol.length + ' 种解法：</span><br>';
+    for (var j = 0; j < customShowCount; j++) {
+      html += '<div style="background:rgba(255,255,255,0.08);padding:6px 14px;border-radius:8px;margin:5px 0;font-family:monospace;font-size:17px;">' + sol[j].replace(/\*/g,'×').replace(/\//g,'÷') + ' = 24</div>';
+    }
+    if (customShowCount < sol.length) {
+      html += '<div style="color:rgba(255,255,255,0.45);font-size:13px;margin-top:6px;">💡 继续点击"求解"查看剩余解法</div>';
+    } else {
+      html += '<div style="color:rgba(255,255,255,0.45);font-size:13px;margin-top:6px;">✅ 已全部展示，下次点击将重新开始</div>';
+    }
+    customResult.innerHTML = html;
+    customResult.style.color = '#fff';
+  });
+
+  btnClear.addEventListener('click', function() {
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].value = '';
+    }
+    customResult.style.display = 'none';
+    customShowCount = 0;
+    lastCustomKey = '';
+    inputs[0].focus();
+  });
+})();
+
+// ========== 难度切换 ==========
+(function(){
+  var diffBtns = document.querySelectorAll('.diff-btn');
+  for (var i = 0; i < diffBtns.length; i++) {
+    (function(btn) {
+      btn.addEventListener('click', function() {
+        for (var j = 0; j < diffBtns.length; j++) {
+          diffBtns[j].classList.remove('active');
+        }
+        btn.classList.add('active');
+        currentDiff = btn.getAttribute('data-diff');
+        initGame();
+      });
+    })(diffBtns[i]);
+  }
+})();
+
+initGame();
+</script>
+</body>
+</html>
